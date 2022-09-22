@@ -1,2 +1,2 @@
 # PyDiary
-A cli diary application that stores entries written in python.
+A CLI application written in python. PyDiary creates plaintext entries that can be written and viewed inside the terminal.
