@@ -14,6 +14,7 @@ from cryptography.fernet import Fernet
 
 # Functions
 
+
 # Clear
 def cls():
     i = 0
@@ -41,7 +42,7 @@ def list_files(directory):
         os.system(f'dir {directory} >> .pydiary/list')
     return
 
-
+# Loading animation
 def animate(tasks):
     num12=0
     while num12<random.randint(4,5):
@@ -88,7 +89,7 @@ except Exception:
     os.system('echo "true" >> .pydiary/pass.dat')
 key = base64.b64encode((hashlib.md5(password.encode('utf-8')).hexdigest()).encode('utf-8'))
 
-# Start the loop
+# Check for files
 try:
     open('.pydiary/check.dat', 'r').read()
 except Exception:
@@ -96,10 +97,14 @@ except Exception:
     os.system('mkdir .pydiary/entries/')
     os.system('echo "true" .pydiary/check.dat')
 
+
+# Start interface loop
 while True:
+
     # Print interface
     cls()
     choice = input('\n\n    [1] Add entry\n    [2] View entries\n    [3] Wipe\n    [q] exit\n\n\n\n> ')
+    
     # Add a new entry
     if choice == '1':
         cls()
@@ -109,6 +114,7 @@ while True:
         os.system(f'echo "text" >> .pydiary/entries/{title}')
         open('.pydiary/entries/' + title, 'wb').write(file_data)
         input('Entry written!')
+    
     # Read an entry
     elif choice == '2':
         cls()
@@ -120,6 +126,8 @@ while True:
         cls()
         print(' --' + title + '--')
         input('\n   ' + entry + '\n\n\n')
+    
+    # Erase
     elif choice == '3':
         cls()
         shutil.rmtree('.pydiary/')
@@ -127,6 +135,7 @@ while True:
         animate('Wiping...')
         input('\n\n\nEntries Wiped\n\n\n')
 
+    # Exit
     elif choice == 'q':
         cls()
         print('quitting...')
