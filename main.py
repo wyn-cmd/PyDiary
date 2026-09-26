@@ -1,138 +1,137 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import os
 import sys
 import time
-import base64
 import shutil
 import random
 import getpass
-import hashlib
-from cryptography.fernet import Fernet
+
+import diary_core
+
+ROOT = ".pydiary"
 
 
 def cls():
-    try:
-        os.system('clear')
-    except Exception:
-        os.system('cls')
-    
+    os.system("cls" if os.name == "nt" else "clear")
+
     try:
         term_width = os.get_terminal_size().columns
-    except Exception:
+    except OSError:
         term_width = 80
-        
-    wid_num = max(0, term_width - 13)
-    wid = ' ' * wid_num
-    print(f'\033[7;38m --PyDiary-- {wid}\n\033[0;0m\n')
 
-
-def list_files(directory):
-    list_path = os.path.join('.pydiary', 'list')
-    os.makedirs('.pydiary', exist_ok=True)
-    
-    try:
-        with open(list_path, 'w') as f:
-            entries = os.listdir(directory)
-            for entry in entries:
-                f.write(entry + '\n')
-    except Exception:
-        try:
-            os.system(f'ls {directory} > {list_path}')
-        except Exception:
-            os.system(f'dir {directory} > {list_path}')
+    wid = " " * max(0, term_width - 13)
+    print(f"\033[7;38m --PyDiary-- {wid}\n\033[0;0m\n")
 
 
 def animate(tasks):
-    frames = ['|', '/', '-', '\\']
+    frames = ["|", "/", "-", "\\"]
     for _ in range(random.randint(4, 5)):
         for frame in frames:
-            sys.stdout.write(f'\r{tasks} {frame}')
+            sys.stdout.write(f"\r{tasks} {frame}")
             sys.stdout.flush()
             time.sleep(0.1)
 
 
-def encrypt(data, key):
-    return Fernet(key).encrypt(data.encode('utf-8'))
-
-
-def decrypt(data, key):
-    return Fernet(key).decrypt(data)
-
-
-# Initialize data directory
-os.makedirs('.pydiary/entries', exist_ok=True)
-
-# Password setup and authentication
-pass_path = os.path.join('.pydiary', 'pass.dat')
-cls()
-
-if os.path.exists(pass_path):
-    password = getpass.getpass('Password: ')
-else:
-    print('***Enter your password for encryption***\n')
-    password = getpass.getpass('Password: ')
-    with open(pass_path, 'w') as f:
-        f.write('true')
-
-key = base64.b64encode(hashlib.md5(password.encode('utf-8')).hexdigest().encode('utf-8'))
-
-# Ensure check file exists
-check_path = os.path.join('.pydiary', 'check.dat')
-if not os.path.exists(check_path):
-    with open(check_path, 'w') as f:
-        f.write('true')
-
-
-# Main application loop
-while True:
+def unlock():
     cls()
-    choice = input('\n\n    [1] Add entry\n    [2] View entries\n    [3] Wipe\n    [q] exit\n\n\n\n> ')
-    
-    if choice == '1':
-        cls()
-        title = input('Enter title: ')
-        entry = input('Entry: ')
-        if title:
-            file_data = encrypt(entry, key)
-            entry_path = os.path.join('.pydiary', 'entries', title)
-            with open(entry_path, 'wb') as f:
-                f.write(file_data)
-            input('Entry written!')
-        else:
-            input('Title cannot be empty!')
-    
-    elif choice == '2':
-        cls()
-        entries_dir = os.path.join('.pydiary', 'entries')
-        list_files(entries_dir)
-        list_path = os.path.join('.pydiary', 'list')
-        if os.path.exists(list_path):
-            with open(list_path, 'r') as f:
-                print(f.read())
-        
-        title = input('\n\n>')
-        entry_path = os.path.join('.pydiary', 'entries', title)
-        if os.path.exists(entry_path):
-            with open(entry_path, 'rb') as f:
-                file_data = f.read()
-            entry = decrypt(file_data, key).decode('utf-8')
-            cls()
-            print(' --' + title + '--')
-            input('\n   ' + entry + '\n\n\n')
-        else:
-            input('Entry not found!')
-    
-    elif choice == '3':
-        cls()
-        if os.path.exists('.pydiary'):
-            shutil.rmtree('.pydiary')
-        print('\n\n')
-        animate('Wiping...')
-        input('\n\n\nEntries Wiped\n\n\n')
-        sys.exit()
+    if diary_core.diary_exists(ROOT):
+        password = getpass.getpass("Password: ")
+        key = diary_core.unlock_diary(ROOT, password)
+        if key is None:
+            # A wrong password used to unlock the diary anyway and only
+            # blew up later trying to decrypt an entry. It is refused here,
+            # at the door, instead.
+            input("Wrong password.\n")
+            sys.exit(1)
+        return key
 
-    elif choice == 'q':
+    print("***Choose a password for encryption***\n")
+    password = getpass.getpass("Password: ")
+    confirm = getpass.getpass("Confirm password: ")
+    if password != confirm:
+        input("Passwords did not match.\n")
+        sys.exit(1)
+    return diary_core.setup_diary(ROOT, password)
+
+
+def add_entry(key):
+    cls()
+    title = input("Enter title: ")
+    entry = input("Entry: ")
+    try:
+        diary_core.write_entry(ROOT, key, title, entry)
+    except ValueError:
+        input("That title cannot be used as a file name.\n")
+        return
+    input("Entry written!")
+
+
+def view_entries(key):
+    cls()
+    entries = diary_core.list_entries(ROOT)
+    if entries:
+        print("\n".join(entries))
+    else:
+        print("(no entries yet)")
+
+    title = input("\n\n> ")
+    text = diary_core.read_entry(ROOT, key, title)
+    if text is None:
+        input("Entry not found!")
+        return
+    cls()
+    print(" --" + title + "--")
+    input("\n   " + text + "\n\n\n")
+
+
+def delete_entry():
+    cls()
+    entries = diary_core.list_entries(ROOT)
+    if entries:
+        print("\n".join(entries))
+    else:
+        print("(no entries yet)")
+
+    title = input("\n\ndelete which entry? > ")
+    if diary_core.delete_entry(ROOT, title):
+        input("Entry deleted.\n")
+    else:
+        input("Entry not found!")
+
+
+def wipe():
+    cls()
+    if os.path.exists(ROOT):
+        shutil.rmtree(ROOT)
+    print("\n\n")
+    animate("Wiping...")
+    input("\n\n\nEntries Wiped\n\n\n")
+    sys.exit()
+
+
+def main():
+    key = unlock()
+
+    while True:
         cls()
-        print('quitting...')
-        sys.exit()
+        choice = input(
+            "\n\n    [1] Add entry\n    [2] View entries\n    [3] Delete entry\n"
+            "    [4] Wipe\n    [q] exit\n\n\n\n> ")
+
+        if choice == "1":
+            add_entry(key)
+        elif choice == "2":
+            view_entries(key)
+        elif choice == "3":
+            delete_entry()
+        elif choice == "4":
+            wipe()
+        elif choice == "q":
+            cls()
+            print("quitting...")
+            sys.exit()
+
+
+if __name__ == "__main__":
+    main()
