@@ -30,8 +30,12 @@ def derive_key(password, salt):
     # instead of none, so two diaries with the same password do not
     # share a key and a captured key cannot be brute forced with a
     # generic MD5 rainbow table.
-    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32,
-                      salt=salt, iterations=KDF_ITERATIONS)
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=KDF_ITERATIONS,
+    )
     return base64.urlsafe_b64encode(kdf.derive(password.encode("utf-8")))
 
 
@@ -52,21 +56,31 @@ def unlock_diary(root, password):
     # Returns the key on a correct password, or None on a wrong one.
     # Nothing about a bad password reaches the caller as an exception:
     # a wrong guess is an expected outcome here, not a bug.
-    with open(os.path.join(root, SALT_FILE), "rb") as f:
-        salt = f.read()
-    key = derive_key(password, salt)
-    with open(os.path.join(root, CHECK_FILE), "rb") as f:
-        token = f.read()
+    salt_path = os.path.join(root, SALT_FILE)
+    check_path = os.path.join(root, CHECK_FILE)
+    
+    if not os.path.exists(salt_path) or not os.path.exists(check_path):
+        return None
+
     try:
+        with open(salt_path, "rb") as f:
+            salt = f.read()
+        key = derive_key(password, salt)
+        with open(check_path, "rb") as f:
+            token = f.read()
         if Fernet(key).decrypt(token) != CHECK_MARKER:
             return None
-    except InvalidToken:
+    except (EnvironmentError, InvalidToken):
         return None
+        
     return key
 
 
 def diary_exists(root):
-    return os.path.exists(os.path.join(root, SALT_FILE))
+    return (
+        os.path.exists(os.path.join(root, SALT_FILE)) and
+        os.path.exists(os.path.join(root, CHECK_FILE))
+    )
 
 
 # A title becomes a filename, so anything that could escape the entries
@@ -87,14 +101,21 @@ def list_entries(root):
     entries_dir = os.path.join(root, ENTRIES_DIR)
     if not os.path.isdir(entries_dir):
         return []
-    return sorted(os.listdir(entries_dir))
+    try:
+        return sorted(os.listdir(entries_dir))
+    except EnvironmentError:
+        return []
 
 
 def write_entry(root, key, title, text):
     safe = safe_title(title)
     if safe is None:
         raise ValueError(f"not a usable title: {title!r}")
-    path = os.path.join(root, ENTRIES_DIR, safe)
+    
+    entries_dir = os.path.join(root, ENTRIES_DIR)
+    os.makedirs(entries_dir, exist_ok=True)
+    
+    path = os.path.join(entries_dir, safe)
     data = Fernet(key).encrypt(text.encode("utf-8"))
     with open(path, "wb") as f:
         f.write(data)
@@ -108,9 +129,12 @@ def read_entry(root, key, title):
     path = os.path.join(root, ENTRIES_DIR, safe)
     if not os.path.exists(path):
         return None
-    with open(path, "rb") as f:
-        data = f.read()
-    return Fernet(key).decrypt(data).decode("utf-8")
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        return Fernet(key).decrypt(data).decode("utf-8")
+    except (EnvironmentError, InvalidToken):
+        return None
 
 
 def delete_entry(root, title):
@@ -122,5 +146,8 @@ def delete_entry(root, title):
     path = os.path.join(root, ENTRIES_DIR, safe)
     if not os.path.exists(path):
         return False
-    os.remove(path)
-    return True
+    try:
+        os.remove(path)
+        return True
+    except EnvironmentError:
+        return False
