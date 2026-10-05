@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import unittest
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet
 
 import diary_core
 
@@ -81,11 +81,10 @@ class EntryTests(unittest.TestCase):
     def test_a_stored_entry_cannot_be_read_with_the_wrong_key(self):
         diary_core.write_entry(self.root, self.key, "secret", "private text")
         wrong_key = diary_core.derive_key("not the password", b"0" * 16)
-        # A bare Exception would also swallow a mistake in the test itself,
-        # so the failure is pinned to the authenticated-decryption error the
-        # library raises when the key does not match the stored token.
-        with self.assertRaises(InvalidToken):
-            diary_core.read_entry(self.root, wrong_key, "secret")
+        # read_entry reports a key that does not match the stored token as
+        # None instead of letting InvalidToken escape, so a wrong key is
+        # pinned to a clean refusal rather than an uncaught crash.
+        self.assertIsNone(diary_core.read_entry(self.root, wrong_key, "secret"))
 
     def test_a_traversal_title_reads_as_none_instead_of_the_decoy_file(self):
         # A file one level above entries/ holds validly encrypted text, so a
