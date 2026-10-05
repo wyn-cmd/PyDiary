@@ -6,6 +6,8 @@ import shutil
 import tempfile
 import unittest
 
+from cryptography.fernet import Fernet, InvalidToken
+
 import diary_core
 
 
@@ -60,6 +62,14 @@ class EntryTests(unittest.TestCase):
         diary_core.write_entry(self.root, self.key, "two", "b")
         self.assertEqual(diary_core.list_entries(self.root), ["one", "two"])
 
+    def test_rewriting_a_title_replaces_the_stored_text(self):
+        # Reusing a title is how the CLI edits an entry, so the second write
+        # has to replace the first: one file left, holding the later text.
+        diary_core.write_entry(self.root, self.key, "today", "first draft")
+        diary_core.write_entry(self.root, self.key, "today", "second draft")
+        self.assertEqual(diary_core.read_entry(self.root, self.key, "today"), "second draft")
+        self.assertEqual(diary_core.list_entries(self.root), ["today"])
+
     def test_an_entry_can_be_deleted(self):
         diary_core.write_entry(self.root, self.key, "today", "text")
         self.assertTrue(diary_core.delete_entry(self.root, "today"))
@@ -71,8 +81,21 @@ class EntryTests(unittest.TestCase):
     def test_a_stored_entry_cannot_be_read_with_the_wrong_key(self):
         diary_core.write_entry(self.root, self.key, "secret", "private text")
         wrong_key = diary_core.derive_key("not the password", b"0" * 16)
-        with self.assertRaises(Exception):
+        # A bare Exception would also swallow a mistake in the test itself,
+        # so the failure is pinned to the authenticated-decryption error the
+        # library raises when the key does not match the stored token.
+        with self.assertRaises(InvalidToken):
             diary_core.read_entry(self.root, wrong_key, "secret")
+
+    def test_a_traversal_title_reads_as_none_instead_of_the_decoy_file(self):
+        # A file one level above entries/ holds validly encrypted text, so a
+        # read that resolved the slashed title would hand the plaintext back.
+        # The refusal is what makes this None, not the file being absent.
+        decoy = os.path.join(self.root, "decoy")
+        with open(decoy, "wb") as f:
+            f.write(Fernet(self.key).encrypt(b"leaked"))
+        self.assertIsNone(diary_core.read_entry(self.root, self.key, "../decoy"))
+        self.assertTrue(os.path.exists(decoy))
 
 
 class SafeTitleTests(unittest.TestCase):
@@ -109,6 +132,16 @@ class TraversalIsBlockedEndToEndTests(unittest.TestCase):
             diary_core.write_entry(self.root, self.key, "../../escape", "text")
         outside = os.path.join(self.root, "..", "..", "escape")
         self.assertFalse(os.path.exists(outside))
+
+    def test_deleting_through_a_traversal_title_is_refused(self):
+        # Deletion must not be a way around the check the write path already
+        # enforces: a slashed title is refused and the file it names outside
+        # the entries directory survives untouched.
+        outside = os.path.join(self.root, "outside-marker")
+        with open(outside, "w") as f:
+            f.write("keep me")
+        self.assertFalse(diary_core.delete_entry(self.root, "../outside-marker"))
+        self.assertTrue(os.path.exists(outside))
 
 
 if __name__ == "__main__":
