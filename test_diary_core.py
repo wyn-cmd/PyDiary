@@ -104,6 +104,7 @@ class TraversalIsBlockedEndToEndTests(unittest.TestCase):
         self.key = diary_core.setup_diary(self.root, "hunter2")
 
     def test_writing_outside_the_entries_directory_is_refused(self):
+        # Expect ValueError when title validation fails on traversal attempts
         with self.assertRaises(ValueError):
             diary_core.write_entry(self.root, self.key, "../../escape", "text")
         outside = os.path.join(self.root, "..", "..", "escape")
