@@ -87,7 +87,7 @@ class EntryTests(unittest.TestCase):
         self.assertIsNone(diary_core.read_entry(self.root, wrong_key, "secret"))
 
     def test_a_traversal_title_reads_as_none_instead_of_the_decoy_file(self):
-        # A file one level above entries/ holds validly encrypted text, so a
+        # A file one level above entries holds validly encrypted text, so a
         # read that resolved the slashed title would hand the plaintext back.
         # The refusal is what makes this None, not the file being absent.
         decoy = os.path.join(self.root, "decoy")
@@ -126,7 +126,7 @@ class TraversalIsBlockedEndToEndTests(unittest.TestCase):
         self.key = diary_core.setup_diary(self.root, "hunter2")
 
     def test_writing_outside_the_entries_directory_is_refused(self):
-        # Expect ValueError when title validation fails on traversal attempts
+        # Expect ValueError when title validation fails on traversal attempts.
         with self.assertRaises(ValueError):
             diary_core.write_entry(self.root, self.key, "../../escape", "text")
         outside = os.path.join(self.root, "..", "..", "escape")
@@ -137,7 +137,7 @@ class TraversalIsBlockedEndToEndTests(unittest.TestCase):
         # enforces: a slashed title is refused and the file it names outside
         # the entries directory survives untouched.
         outside = os.path.join(self.root, "outside-marker")
-        with open(outside, "w") as f:
+        with open(outside, "w", encoding="utf-8") as f:
             f.write("keep me")
         self.assertFalse(diary_core.delete_entry(self.root, "../outside-marker"))
         self.assertTrue(os.path.exists(outside))
