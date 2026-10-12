@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# PyDiary main interface script.
+
 import os
 import sys
 import time
@@ -39,9 +41,6 @@ def unlock():
         password = getpass.getpass("Password: ")
         key = diary_core.unlock_diary(ROOT, password)
         if key is None:
-            # A wrong password used to unlock the diary anyway and only
-            # blew up later trying to decrypt an entry. It is refused here,
-            # at the door, instead.
             input("Wrong password.\n")
             sys.exit(1)
         return key
@@ -74,12 +73,18 @@ def view_entries(key):
         print("\n".join(entries))
     else:
         print("(no entries yet)")
+        input("\n\nPress enter to go back.")
+        return
 
     title = input("\n\n> ")
+    if not title:
+        return
+
     text = diary_core.read_entry(ROOT, key, title)
     if text is None:
         input("Entry not found!")
         return
+
     cls()
     print(" --" + title + "--")
     input("\n   " + text + "\n\n\n")
@@ -92,8 +97,13 @@ def delete_entry():
         print("\n".join(entries))
     else:
         print("(no entries yet)")
+        input("\n\nPress enter to go back.")
+        return
 
     title = input("\n\ndelete which entry? > ")
+    if not title:
+        return
+
     if diary_core.delete_entry(ROOT, title):
         input("Entry deleted.\n")
     else:
