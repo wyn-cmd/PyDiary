@@ -74,6 +74,8 @@ def view_entries(key):
         print("\n".join(entries))
     else:
         print("(no entries yet)")
+        input()
+        return
 
     title = input("\n\n> ")
     text = diary_core.read_entry(ROOT, key, title)
@@ -92,6 +94,8 @@ def delete_entry():
         print("\n".join(entries))
     else:
         print("(no entries yet)")
+        input()
+        return
 
     title = input("\n\ndelete which entry? > ")
     if diary_core.delete_entry(ROOT, title):
