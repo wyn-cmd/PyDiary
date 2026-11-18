@@ -42,7 +42,12 @@ def derive_key(password, salt):
 def setup_diary(root, password):
     # First run: pick a salt, derive the key, and write the encrypted
     # marker that every later unlock will be checked against.
+    if not password:
+        raise ValueError("Password cannot be empty")
+
+    # Create entries directory
     os.makedirs(os.path.join(root, ENTRIES_DIR), exist_ok=True)
+    # Generate salt
     salt = secrets.token_bytes(16)
     with open(os.path.join(root, SALT_FILE), "wb") as f:
         f.write(salt)
