@@ -40,18 +40,19 @@ def derive_key(password, salt):
 
 
 def setup_diary(root, password):
-    # First run: pick a salt, derive the key, and write the encrypted
-    # marker that every later unlock will be checked against.
+    if not password:
+        raise ValueError("Password cannot be empty")
+    # Create entries directory
     os.makedirs(os.path.join(root, ENTRIES_DIR), exist_ok=True)
+    # Generate and save salt
     salt = secrets.token_bytes(16)
     with open(os.path.join(root, SALT_FILE), "wb") as f:
         f.write(salt)
+    # Derive key and save encrypted marker for validation
     key = derive_key(password, salt)
     with open(os.path.join(root, CHECK_FILE), "wb") as f:
         f.write(Fernet(key).encrypt(CHECK_MARKER))
     return key
-
-
 def unlock_diary(root, password):
     # Returns the key on a correct password, or None on a wrong one.
     # Nothing about a bad password reaches the caller as an exception:
